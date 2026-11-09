@@ -47,6 +47,8 @@ export interface Entity {
 export interface Dataset {
   actuals: Line[]
   budget: BudgetRow[]
+  /** Optional trial balance kept only to tie out against the GL detail. */
+  tb?: Line[]
 }
 
 export interface Thresholds {
