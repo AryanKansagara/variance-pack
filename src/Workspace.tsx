@@ -8,7 +8,10 @@ export default function Workspace() {
   const list = useProjects()
   const [naming, setNaming] = useState(false)
   useEffect(() => {
-    if (new URLSearchParams(location.search).get('import') === '1') { history.replaceState({}, '', '/app'); setNaming(true) }
+    const q = new URLSearchParams(location.search)
+    if (q.get('import') === '1') { history.replaceState({}, '', '/app'); setNaming(true) }
+    const s = q.get('sample'), tab = q.get('tab')
+    if (s && SAMPLES.some(x => x.id === s)) void createSampleProject(s).then(p => go(`/app/p/${p.id}${tab ? '/' + tab : ''}`, { replace: true }))
   }, [])
 
   const create = async (name: string) => {

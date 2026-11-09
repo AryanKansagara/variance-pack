@@ -10,6 +10,8 @@ export function money(n: number): string {
 }
 
 export const pctText = (p: number | null) => p === null ? 'no base' : `${Math.round(Math.abs(p) * 100)}%`
+/** Signed percent that never shows a minus on a rounded zero. */
+export const signedPct = (p: number | null) => p === null ? '–' : Math.round(Math.abs(p) * 100) === 0 ? '0%' : `${p > 0 ? '+' : '−'}${pctText(p)}`
 
 export function monthName(period: string) {
   return new Date(period + '-01T00:00:00Z').toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' })
@@ -49,11 +51,15 @@ export function draft(f: Flag): string {
   const head = `${f.row.name} ${money(Math.abs(f.v.amount))} (${pctText(f.v.pct)}) ${direction(f)}`
   const pvLead = !f.drivers.length && f.row.pv && f.basis === 'budget'
   const parts = pvLead ? pvParts(f.row.pv!) : f.drivers.map(driverPhrase)
-  const body = parts.length
+  const offsetOnly = f.nature === 'timing' && f.timing.offsets && f.drivers.length > 0 && f.drivers.every(d => d.tag === 'dropped')
+  const body = offsetOnly
+    ? `, with no ${f.drivers.map(d => d.name).join(' or ')} spend this month after it was booked in ${monthName(f.timing.offsets!)}`
+    : parts.length
     ? `, driven by ${parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1] : parts[0]}`
     : ', no GL detail isolates a driver; needs review'
   const nature =
-    f.nature === 'timing' ? `; timing${f.timing.reversesIn ? `, reverses in ${monthName(f.timing.reversesIn)}` : f.timing.offsets ? `, offsets ${monthName(f.timing.offsets)}` : f.timing.reason ? `, ${f.timing.reason}` : ''}`
+    offsetOnly ? '; timing'
+      : f.nature === 'timing' ? `; timing${f.timing.reversesIn ? `, reverses in ${monthName(f.timing.reversesIn)}` : f.timing.offsets ? `, offsets ${monthName(f.timing.offsets)}` : f.timing.reason ? `, ${f.timing.reason}` : ''}`
       : f.nature === 'non-recurring' ? '; non-recurring'
         : f.nature === 'run-rate' ? '; recurring run-rate' : ''
   const pv = f.row.pv && f.basis === 'budget' && !pvLead ? ` Volume ${signedMoney(f.row.pv.volume)}, price ${signedMoney(f.row.pv.price)}.` : ''

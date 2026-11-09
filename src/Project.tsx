@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Bridge } from './Bridge.tsx'
-import { draft, facts, money, monthName, pctText, type Note, type Status } from './engine/commentary.ts'
+import { draft, facts, money, monthName, pctText, signedPct, type Note, type Status } from './engine/commentary.ts'
 import { BASIS_LABEL, drivers as driversOf, shift, type AccountRow, type Flag, type Rollup } from './engine/variance.ts'
 import type { Basis, Dataset } from './engine/types.ts'
 import { basisLabel, checkFor, exportXlsx, snapshotOf, useAnalysis, useProject, type Analysis } from './projectData.ts'
@@ -171,7 +171,7 @@ function VarCells({ r, basis }: { r: AccountRow | Rollup; basis: Basis }) {
     <td className="num">{fmtUsd(r.actual)}</td>
     <td className="num muted">{fmtUsd(v.base)}</td>
     <td className={`num ${cls}`}>{v.amount > 0 ? '+' : v.amount < 0 ? '−' : ''}{fmtUsd(Math.abs(v.amount))}</td>
-    <td className={`num ${cls}`}>{v.pct === null ? '–' : `${v.amount >= 0 ? '+' : '−'}${pctText(v.pct)}`}</td>
+    <td className={`num ${cls}`}>{signedPct(v.pct)}</td>
   </>
 }
 
