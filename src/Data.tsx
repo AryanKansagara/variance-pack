@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { balanceChecks, detect, parseCsv, parseRows, proposeMapping, tieOut, toCsv, type Detected, type Field, type Kind } from './engine/parse.ts'
+import { balanceChecks, detect, isBalanceSheetAccount, parseCsv, parseRows, proposeMapping, tieOut, toCsv, type Detected, type Field, type Kind } from './engine/parse.ts'
 import { periodsOf } from './engine/variance.ts'
 import { SECTIONS, type Basis, type Config, type Dataset, type Entity, type MapRow, type Section } from './engine/types.ts'
 import { putData, saveProject, uuid, type ImportMeta, type Project } from './store.ts'
@@ -14,7 +14,7 @@ export default function Data({ project: p, ds }: { project: Project; ds: Dataset
   const checks = useMemo(() => balanceChecks(ds.actuals), [ds])
   const ties = useMemo(() => ds.tb?.length ? tieOut(ds.actuals, ds.tb) : [], [ds])
   const seen = useMemo(() => [...new Set(ds.actuals.map(l => l.account))], [ds])
-  const unmapped = seen.filter(a => !p.config.mapping.some(m => m.account === a) && !/^[123]/.test(a))
+  const unmapped = seen.filter(a => !p.config.mapping.some(m => m.account === a) && !/^[123]/.test(a) && !p.config.balanceSheet?.includes(a))
 
   return (
     <div className="stack-lg data-tab">
@@ -162,7 +162,7 @@ function ImportWizard({ open, onClose, p, ds }: { open: boolean; onClose(): void
       } else rows = parseCsv(await f.text())
       if (!rows.length) throw new Error('The file is empty.')
       const d = detect(rows)
-      setFile({ name: f.name, rows }); setDet(d)
+      setFile({ name: f.name, rows }); setDet(d); setPeriod(d.period ?? '')
       if (d.columns.entity === undefined && !p.config.entities.length) setEntity('MAIN')
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) }
   }
@@ -171,6 +171,7 @@ function ImportWizard({ open, onClose, p, ds }: { open: boolean; onClose(): void
     if (!parsed || !det || !file) return
     let next: Dataset = { ...ds }
     let mapping = p.config.mapping
+    let bsAdd: string[] = []
     if (det.kind === 'mapping') {
       const byAcc = new Map(mapping.map(m => [m.account, m]))
       for (const m of parsed.mapping) byAcc.set(m.account, m)
@@ -185,21 +186,23 @@ function ImportWizard({ open, onClose, p, ds }: { open: boolean; onClose(): void
     }
     if (det.kind !== 'mapping') {
       const accts = [...new Set([...parsed.actuals.map(l => l.account), ...parsed.budget.map(b => b.account)])]
-      const add = proposeMapping(accts.map(code => ({ code, name: parsed.names[code] ?? code })), mapping)
+      const add = proposeMapping(accts.map(code => ({ code, name: parsed.names[code] ?? code, type: parsed.types[code] })), mapping)
       mapping = [...mapping, ...add].sort((a, b) => a.account.localeCompare(b.account))
+      const mapped = new Set(mapping.map(m => m.account))
+      bsAdd = accts.filter(a => !mapped.has(a) && isBalanceSheetAccount(a, parsed.names[a] ?? a, parsed.types[a]))
     }
     const entIds = [...new Set([...next.actuals.map(l => l.entity), ...next.budget.map(b => b.entity)])]
     const entities = [...p.config.entities, ...entIds.filter(id => !p.config.entities.some(e => e.id === id)).map(id => ({ id, name: id, currency: p.config.reportingCurrency, fx: 1 }))]
     const meta: ImportMeta = { id: uuid(), kind: det.kind === 'actuals' && asTb ? 'tb' : det.kind, fileName: file.name, format: det.format, rows: parsed.actuals.length + parsed.budget.length + parsed.mapping.length, issues: parsed.issues.length, periods: parsed.periods, at: Date.now() }
     await putData(p.id, next)
     const periods = periodsOf(next)
-    await saveProject({ ...p, imports: [...p.imports, meta], config: { ...p.config, mapping, entities }, period: periods[periods.length - 1] ?? p.period })
+    await saveProject({ ...p, imports: [...p.imports, meta], config: { ...p.config, mapping, entities, ...(bsAdd.length ? { balanceSheet: [...new Set([...(p.config.balanceSheet ?? []), ...bsAdd])] } : {}) }, period: periods[periods.length - 1] ?? p.period })
     toast(`Imported ${meta.rows.toLocaleString()} rows from ${file.name}.`, { tone: 'ok' })
     reset(); onClose()
   }
 
   const setCol = (f: Field, v: string) => det && setDet({ ...det, columns: { ...det.columns, [f]: v === '' ? undefined : +v } })
-  const needsPeriod = det && det.kind !== 'mapping' && det.columns.period === undefined && det.columns.date === undefined && !Object.keys(det.monthColumns).length
+  const needsPeriod = det && det.kind !== 'mapping' && det.columns.period === undefined && det.columns.date === undefined && (det.kind === 'actuals' || !Object.keys(det.monthColumns).length)
 
   return (
     <Modal open={open} onClose={() => { reset(); onClose() }} title="Import data" wide>

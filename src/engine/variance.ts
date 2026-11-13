@@ -288,7 +288,8 @@ export function buildReport(ds: Dataset, cfg: Config, period: string, scope: Sco
     })
   }
   const mapped = new Set(cfg.mapping.map(m => m.account))
-  const unmapped = [...cur].filter(([a, n]) => !mapped.has(a) && !isBalanceSheet(a) && Math.abs(n) > 0.005).map(([account, net]) => ({ account, net: r2(net) }))
+  const bs = new Set(cfg.balanceSheet)
+  const unmapped = [...cur].filter(([a, n]) => !mapped.has(a) && !isBalanceSheet(a) && !bs.has(a) && Math.abs(n) > 0.005).map(([account, net]) => ({ account, net: r2(net) }))
   const lines: Rollup[] = [], sections: Rollup[] = []
   for (const s of SECTIONS) {
     const inS = rows.filter(r => r.section === s)

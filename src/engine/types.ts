@@ -65,4 +65,6 @@ export interface Config {
   reportingCurrency: string
   thresholds: Thresholds
   basis: Basis
+  /** Accounts an import identified as balance sheet (e.g. Xero's 090 Bank or 800 Accounts Payable) that the code range alone would miss. */
+  balanceSheet?: string[]
 }
