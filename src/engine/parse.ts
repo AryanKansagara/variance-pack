@@ -387,7 +387,7 @@ export function balanceChecks(lines: Line[]): BalanceCheck[] {
     const k = `${l.entity}|${l.period}`
     const e = m.get(k) ?? { entity: l.entity, period: l.period, debit: 0, credit: 0, diff: 0, ok: true, pnlOnly: true }
     e.debit += l.debit; e.credit += l.credit
-    if (isBalanceSheet(l.account)) e.pnlOnly = false
+    if (isBalanceSheetAccount(l.account)) e.pnlOnly = false
     m.set(k, e)
   }
   return [...m.values()].map(e => ({ ...e, debit: r2(e.debit), credit: r2(e.credit), diff: r2(e.debit - e.credit), ok: Math.abs(e.debit - e.credit) < 0.01 })).sort((a, b) => a.period.localeCompare(b.period) || a.entity.localeCompare(b.entity))

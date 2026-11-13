@@ -292,7 +292,7 @@ main:focus { outline: none; }
 .kpi-flags { background: linear-gradient(140deg, var(--green-700), var(--green-800)); border-color: transparent; }
 .kpi-flags .kpi-label, .kpi-flags .kpi-var { color: var(--green-200); } .kpi-flags .kpi-value { color: #fff; }
 .elim p { margin: .2rem 0; }
-.table-card { overflow-x: auto; }
+.table-card { overflow-x: auto; position: relative; }
 .vt { width: 100%; border-collapse: collapse; font-size: .92rem; font-variant-numeric: tabular-nums; }
 .vt th, .vt td { padding: .55rem .9rem; text-align: left; border-bottom: 1px solid var(--border); }
 .vt thead th { font-size: .74rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; background: var(--bg-alt); position: sticky; top: 0; }
@@ -365,7 +365,7 @@ input.owner { width: 9rem; }
 .legend { display: flex; align-items: center; gap: .4rem; color: var(--muted); }
 .legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
 .lg-act { background: var(--green-500); } .lg-bud { background: var(--border-strong); margin-left: .6rem; }
-.scroll-x { overflow-x: auto; }
+.scroll-x { overflow-x: auto; position: relative; }
 
 /* Data tab */
 .checks { list-style: none; padding: 0; margin: .4rem 0; display: grid; gap: .35rem; font-size: .88rem; }
@@ -385,6 +385,7 @@ details summary { cursor: pointer; font-weight: 700; color: var(--heading); marg
 .v-sum { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; font-size: .9rem; }
 .issues { list-style: none; padding: 0; margin: .6rem 0 0; max-height: 180px; overflow: auto; font-size: .86rem; display: grid; gap: .2rem; }
 .issues .mono { color: var(--unfav); margin-right: .4rem; }
+.issues .warning .mono { color: var(--muted, inherit); }
 
 /* Docs */
 .docs { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 3rem; }
@@ -489,3 +490,6 @@ details summary { cursor: pointer; font-weight: 700; color: var(--heading); marg
   @page { margin: 16mm 14mm; }
 }
 .vt input[type='checkbox'] { min-height: 0; width: 17px; height: 17px; padding: 0; }
+
+/* Commentary boxes grow with their text where supported. */
+textarea[id^="n-"] { field-sizing: content; min-height: 5.5rem; }

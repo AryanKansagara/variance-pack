@@ -385,7 +385,7 @@ function SnapCompare({ a, b }: { a: Snapshot; b: Snapshot }) {
     return { acc, name: y?.name ?? x?.name ?? acc, x, y, change, status }
   }).filter(r => r.status || Math.abs(r.change) >= 1).sort((m, n) => Number(!!n.status) - Number(!!m.status) || Math.abs(n.change) - Math.abs(m.change)).slice(0, 14)
   return (
-    <table className="vt compact">
+    <div className="scroll-x"><table className="vt compact">
       <thead><tr><th scope="col">Account</th><th scope="col" className="num">{a.label}</th><th scope="col" className="num">{b.label}</th><th scope="col" className="num">Change</th><th scope="col">Flag</th></tr></thead>
       <tbody>{rows.map(r => (
         <tr key={r.acc}>
@@ -395,7 +395,7 @@ function SnapCompare({ a, b }: { a: Snapshot; b: Snapshot }) {
           <td>{r.status && <span className={`status-tag ${r.status === 'cleared' ? 'approved' : r.status === 'newly flagged' ? 'unfav' : 'draft'}`}>{r.status}</span>}</td>
         </tr>
       ))}</tbody>
-    </table>
+    </table></div>
   )
 }
 

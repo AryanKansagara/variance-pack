@@ -14,6 +14,15 @@ FP&A analysts and controllers rebuild the same variance deck in Excel every mont
 - **Workspace**: multiple close packs stored locally in IndexedDB; optional sign-in syncs them across devices.
 - Two synthetic companies: a SaaS business with a marketing overspend and an early audit accrual, and a US/Canada distributor with intercompany to eliminate.
 
+## Tested formats
+
+The importer tests use excerpts laid out exactly like real exports: the QuickBooks Online General Ledger (older header-row layout and the current *Distribution account* layout), QuickBooks Profit and Loss Detail, and the current Xero Trial Balance (*Account Code / Account / Account Type / Debit - Year to date*). QuickBooks report amounts are signed by each account's normal balance and are converted back to debits and credits; Xero account types keep bank, receivable and payable accounts off the P&L.
+
+## Known gaps
+
+- The current Xero Trial Balance only has year-to-date debit and credit columns; the import warns, but does not difference successive months for you. Use Account Transactions for monthly actuals.
+- Unnumbered QuickBooks accounts are classified by name when the report has no Income/Expenses sections (the General Ledger). Check the proposed mapping.
+
 ## Run locally
 
 ```

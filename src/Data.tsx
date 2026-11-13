@@ -27,8 +27,8 @@ export default function Data({ project: p, ds }: { project: Project; ds: Dataset
           </div>
         </div>
         {p.sampleId && <p className="small muted">This is a synthetic company, so its ledger cannot be replaced. Mapping, FX and thresholds below are editable. Create a new close pack to import your own data.</p>}
-        {p.imports.length > 0 && <table className="vt compact"><thead><tr><th>File</th><th>Type</th><th>Format</th><th className="num">Rows</th><th>Periods</th><th>Issues</th></tr></thead>
-          <tbody>{[...p.imports].reverse().map(i => <tr key={i.id}><th scope="row">{i.fileName}</th><td>{i.kind === 'tb' ? 'Tie-out TB' : i.kind}</td><td className="muted">{i.format}</td><td className="num">{i.rows.toLocaleString()}</td><td className="small">{i.periods.length ? `${i.periods[0]} to ${i.periods[i.periods.length - 1]}` : ''}</td><td className={i.issues ? 'warn-t' : 'muted'}>{i.issues || 'none'}</td></tr>)}</tbody></table>}
+        {p.imports.length > 0 && <div className="scroll-x"><table className="vt compact"><thead><tr><th>File</th><th>Type</th><th>Format</th><th className="num">Rows</th><th>Periods</th><th>Issues</th></tr></thead>
+          <tbody>{[...p.imports].reverse().map(i => <tr key={i.id}><th scope="row">{i.fileName}</th><td>{i.kind === 'tb' ? 'Tie-out TB' : i.kind}</td><td className="muted">{i.format}</td><td className="num">{i.rows.toLocaleString()}</td><td className="small">{i.periods.length ? `${i.periods[0]} to ${i.periods[i.periods.length - 1]}` : ''}</td><td className={i.issues ? 'warn-t' : 'muted'}>{i.issues || 'none'}</td></tr>)}</tbody></table></div>}
       </div>
 
       <div className="card pad">
@@ -85,13 +85,13 @@ function Entities({ p, ds, setCfg }: { p: Project; ds: Dataset; setCfg(c: Partia
         <label className="field inline"><span>Reporting currency</span><input className="short" defaultValue={p.config.reportingCurrency} onBlur={e => setCfg({ reportingCurrency: e.target.value.toUpperCase().slice(0, 3) || 'USD' })} /></label>
       </div>
       {!ents.length ? <p className="muted small">Entities appear here after you import actuals.</p> : (
-        <table className="vt compact">
+        <div className="scroll-x"><table className="vt compact">
           <thead><tr><th>Entity</th><th>Name</th><th>Currency</th><th className="num">Rate to {p.config.reportingCurrency}</th></tr></thead>
           <tbody>{ents.map(e => <tr key={e.id}><th scope="row" className="mono">{e.id}</th>
             <td><input aria-label={`Name of ${e.id}`} defaultValue={e.name} onBlur={x => set(e.id, { name: x.target.value || e.id })} /></td>
             <td><input aria-label={`Currency of ${e.id}`} className="short" defaultValue={e.currency} onBlur={x => set(e.id, { currency: x.target.value.toUpperCase().slice(0, 3) })} /></td>
             <td className="num"><input aria-label={`FX rate for ${e.id}`} type="number" step="0.0001" min="0" className="short num" defaultValue={e.fx} onBlur={x => { const v = +x.target.value; if (v > 0) set(e.id, { fx: v }); else toast('The FX rate must be above zero.', { tone: 'error' }) }} /></td></tr>)}</tbody>
-        </table>
+        </table></div>
       )}
       <p className="muted small">One rate per entity, applied to actuals and budget. Use your month-end or average rate per policy; the intercompany residual on the Overview shows any mismatch.</p>
     </div>
@@ -202,6 +202,7 @@ function ImportWizard({ open, onClose, p, ds }: { open: boolean; onClose(): void
   }
 
   const setCol = (f: Field, v: string) => det && setDet({ ...det, columns: { ...det.columns, [f]: v === '' ? undefined : +v } })
+  const errors = parsed ? parsed.issues.filter(i => i.level === 'error').length : 0
   const needsPeriod = det && det.kind !== 'mapping' && det.columns.period === undefined && det.columns.date === undefined && (det.kind === 'actuals' || !Object.keys(det.monthColumns).length)
 
   return (
@@ -246,16 +247,17 @@ function ImportWizard({ open, onClose, p, ds }: { open: boolean; onClose(): void
             <div className="v-sum">
               <span><b>{(parsed.actuals.length + parsed.budget.length + parsed.mapping.length).toLocaleString()}</b> rows ready</span>
               <span>{parsed.skipped} skipped (totals, blanks, zero)</span>
-              <span className={parsed.issues.length ? 'warn-t' : 'fav-t'}><b>{parsed.issues.length}</b> issues</span>
+              <span className={errors ? 'warn-t' : 'fav-t'}><b>{errors}</b> {errors === 1 ? 'error' : 'errors'}</span>
+              {parsed.issues.length > errors && <span className="muted"><b>{parsed.issues.length - errors}</b> {parsed.issues.length - errors === 1 ? 'warning' : 'warnings'}</span>}
               {parsed.periods.length > 0 && <span>{parsed.periods.length === 1 ? fmtMonth(parsed.periods[0]) : `${fmtMonth(parsed.periods[0])} to ${fmtMonth(parsed.periods[parsed.periods.length - 1])}`}</span>}
               {det.kind === 'actuals' && <span>{parsed.hasDetail ? 'GL detail (drivers available)' : 'Trial balance (no vendor detail)'}</span>}
             </div>
             {balance.length > 0 && <ul className="checks small">{balance.slice(-4).map(c => <li key={c.entity + c.period} className={c.ok ? 'ok' : c.pnlOnly ? 'info' : 'bad'}>{c.entity} {fmtMonth(c.period)}: {c.ok ? 'debits equal credits' : c.pnlOnly ? `P&L only, net ${fmtUsd(c.diff, 2)}` : `out of balance by ${fmtUsd(c.diff, 2)}`}</li>)}</ul>}
-            {parsed.issues.length > 0 && <ul className="issues">{parsed.issues.slice(0, 50).map((i, k) => <li key={k}><span className="mono">Line {i.line}</span> {i.message}</li>)}{parsed.issues.length > 50 && <li className="muted">…and {parsed.issues.length - 50} more</li>}</ul>}
+            {parsed.issues.length > 0 && <ul className="issues">{parsed.issues.slice(0, 50).map((i, k) => <li key={k} className={i.level}><span className="mono">Line {i.line}</span> {i.level === 'warning' ? 'Warning: ' : ''}{i.message}</li>)}{parsed.issues.length > 50 && <li className="muted">…and {parsed.issues.length - 50} more</li>}</ul>}
           </div>
           <div className="row end gap">
             <button type="button" className="btn ghost" onClick={() => { reset(); onClose() }}>Cancel</button>
-            <button type="button" className="btn primary" disabled={(!parsed.actuals.length && !parsed.budget.length && !parsed.mapping.length) || !!(needsPeriod && !period)} onClick={() => void commit()}>Import {parsed.issues.length ? 'valid rows' : ''}</button>
+            <button type="button" className="btn primary" disabled={(!parsed.actuals.length && !parsed.budget.length && !parsed.mapping.length) || !!(needsPeriod && !period)} onClick={() => void commit()}>Import {errors ? 'valid rows' : ''}</button>
           </div>
         </div>
       )}
