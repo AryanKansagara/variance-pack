@@ -62,7 +62,7 @@ export default function Docs() {
           <li><b>Customize → Rows/Columns → Change columns</b>: keep Date, Transaction Type, Num, Name, Memo/Description, Account, Debit, Credit. Add Class or Location if you report entities that way.</li>
           <li><b>Export → Export to Excel</b>. Import the .xlsx as is; the title rows above the header are skipped.</li>
         </ol>
-        <p>The <b>Trial Balance</b> report also works (one month per export, pick the period on import). The grouped <b>General Ledger</b> report imports too, since account header rows are recognised.</p>
+        <p>The <b>Trial Balance</b> report also works (one month per export, pick the period on import). The <b>General Ledger</b> and <b>Profit and Loss Detail</b> reports import as they come out of <b>Export → Export to CSV</b>, in both the older layout (account as a header row) and the current one with a <i>Distribution account</i> column. Their single Amount column is signed by each account&rsquo;s normal balance (an invoice is positive on an income account), so the importer turns it back into debits and credits: from the account number when there is one (2xxx to 4xxx are credit-normal), otherwise from the report section (Income vs Expenses) or the account name. Beginning Balance, Total for and Net Income rows are skipped, and a single-month title such as &ldquo;August 1-31, 2026&rdquo; fills in the period.</p>
         <h3>Budget: Budget Overview</h3>
         <p>Budgets need QuickBooks Online Plus or Advanced. <b>Settings (gear) → Budgeting</b>, pick the budget, <b>Run budgets overview report</b>, then <b>Export to Excel</b>. It has one column per month, which is detected.</p>
 
@@ -74,7 +74,11 @@ export default function Docs() {
           <li>In <b>Columns</b>, include Date, Source, Description, Reference, Contact, Debit, Credit and Account. Contact becomes the vendor driver.</li>
           <li><b>Export → Excel</b>.</li>
         </ol>
-        <p><b>Trial Balance</b> (Accounting → Reports → Trial Balance) exports Account as “Advertising (400)”; the code in brackets is extracted.</p>
+        <p><b>Trial Balance</b> (Accounting → Reports → Trial Balance): older exports show Account as &ldquo;Advertising (400)&rdquo; and the code in brackets is extracted; the current export has separate <i>Account Code</i>, <i>Account</i> and <i>Account Type</i> columns, all read. The month comes from the &ldquo;As at 31 October 2025&rdquo; title. Two things to know:</p>
+        <ul>
+          <li>The current export only has <i>Debit - Year to date</i> and <i>Credit - Year to date</i>. For revenue and expense accounts that is the year so far, not the month, and the import warns you. Use Account Transactions for monthly actuals and keep the trial balance as the tie-out file.</li>
+          <li>Xero&rsquo;s default chart numbers bank as 090, receivables 610 and payables 800, so the account code alone cannot tell balance sheet from P&amp;L. <i>Account Type</i> (Bank, Current Asset, Current Liability, Equity and so on) is used instead, and those accounts are left off the P&amp;L mapping.</li>
+        </ul>
         <h3>Budget</h3>
         <p><b>Accounting → Reports → Budget Manager</b>, choose the budget and period, then <b>Export → Excel</b>. Or run the <b>Budget Summary</b> report by month and export.</p>
 

@@ -325,7 +325,8 @@ const BS_NAME = /\b(checking|savings|bank|cash|petty cash|receivable|payable|inv
 export function isBalanceSheetAccount(code: string, name = '', type?: string): boolean {
   if (type) return BS_TYPE.test(type) && !/expense|income|revenue/i.test(type)
   if (/^\d/.test(code)) return isBalanceSheet(code)
-  return BS_NAME.test(name || code)
+  const n = name || code
+  return BS_NAME.test(n) && !/\b(fees?|charges?|expenses?|interest|commissions?|income|revenue)\b/i.test(n)
 }
 
 function sectionFromType(type: string): Section | null {
