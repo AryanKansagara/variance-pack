@@ -281,7 +281,7 @@ export function Footer() {
       <div className="footer-inner">
         <div className="footer-brand"><Monogram /> <strong>Variance Pack</strong></div>
         <nav className="footer-nav" aria-label="Footer"><Link href="/app">Close packs</Link><Link href="/docs">Docs</Link><Link href="/settings">Settings</Link></nav>
-        <p>Built by Aryan Kansagara. Independent project, not affiliated with Vena Solutions.</p>
+        <p>Built by Aryan Kansagara.</p>
         <p className="muted small">Sample companies are synthetic. Your ledgers are parsed in your browser and stored on this device unless you sign in to sync.</p>
       </div>
     </footer>
