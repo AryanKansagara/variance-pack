@@ -92,7 +92,8 @@ test('importing actuals and a budget produces a variance, and it persists', asyn
   const dialog = importDialog(page)
   await expect(dialog.getByText('Generic layout')).toBeVisible()
   await expect(dialog.getByText('4 rows ready')).toBeVisible()
-  await expect(dialog.getByText('0 errors')).toBeVisible()
+  await expect(dialog.getByText('0 errors')).toHaveClass(/fav-t/) // a pass, because rows were read
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
   await expect(dialog.getByText('debits equal credits')).toBeVisible()
   await dialog.getByRole('button', { name: 'Import', exact: true }).click()
   await expect(page.getByText('Imported 4 rows from actuals-2026-10.csv.')).toBeVisible()
@@ -180,15 +181,26 @@ test.describe('files the importer cannot use', () => {
     })
   }
 
-  // Known gap, reported as https://github.com/AryanKansagara/variance-pack/issues/3: a file with no readable rows
-  // shows no message at all. This asserts what must hold regardless: nothing can be imported and the app stays usable.
-  test('a text note is not importable and the app stays usable', async ({ page }) => {
+  // https://github.com/AryanKansagara/variance-pack/issues/3: a file with no readable rows says so, and "0 errors" is not shown as a pass.
+  test('a text note says no rows could be read, is not importable, and the app stays usable', async ({ page }) => {
     await newPack(page, 'Bad file Co')
     await chooseFile(page, fixture('not-a-ledger.csv'))
     const dialog = importDialog(page)
     await expect(dialog.getByText('0 rows ready')).toBeVisible()
+    await expect(dialog.getByRole('alert')).toContainText('No rows could be read from this file. It does not look like a trial balance, GL detail, budget or mapping.')
+    await expect(dialog.getByRole('alert').getByRole('link', { name: 'see the export steps' })).toHaveAttribute('href', '/docs')
+    await expect(dialog.getByText('0 errors')).not.toHaveClass(/fav-t/)
     await expect(dialog.getByRole('button', { name: /^Import/ })).toBeDisabled()
     await thenImportGoodFile(page, 'not-a-ledger.csv')
+  })
+
+  test('a file whose rows are all totals or zero says everything was skipped', async ({ page }) => {
+    await newPack(page, 'Bad file Co')
+    await chooseFile(page, { name: 'zeros.csv', mimeType: 'text/csv', buffer: Buffer.from('Period,Account,Debit,Credit\n2026-10,4000,0,0\n2026-10,Total,10,10\n') })
+    const dialog = importDialog(page)
+    await expect(dialog.getByText('0 rows ready')).toBeVisible()
+    await expect(dialog.getByRole('alert')).toContainText('Every row in this file was skipped')
+    await expect(dialog.getByRole('button', { name: /^Import/ })).toBeDisabled()
   })
 })
 
