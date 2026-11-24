@@ -3,7 +3,7 @@
 // Company, customer and vendor names are made up.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { creditNormal, detect, isBalanceSheetAccount, parseCsv, parseRows, proposeMapping, balanceChecks } from './parse.ts'
+import { creditNormal, detect, isBalanceSheetAccount, noRowsReason, parseCsv, parseRows, proposeMapping, balanceChecks } from './parse.ts'
 import { buildReport } from './variance.ts'
 import type { Line } from './types.ts'
 
@@ -183,4 +183,39 @@ test('accounts an import marked as balance sheet are not reported as unmapped', 
   const base = { reportingCurrency: 'USD', thresholds: { abs: 1, pct: 0.1 }, basis: 'budget' as const, entities: [], mapping: [] }
   assert.deepEqual(buildReport(ds, base, '2026-10').unmapped.map(u => u.account), ['090', '477'])
   assert.deepEqual(buildReport(ds, { ...base, balanceSheet: ['090'] }, '2026-10').unmapped.map(u => u.account), ['477'])
+})
+
+test('a file with nothing readable is called out, not shown as "0 errors"', () => {
+  const unreadable = [
+    'This is a note, not a ledger export.\nPlease see the attached invoice.\n', // the case in issue #3
+    'just one line', 'single\n', ',,,\n,,,\n', 'Account\n', 'Account,Debit,Credit\n', // header only
+    'Trial Balance\nAs at 31 October 2026\n', 'Heading\n\nAnother heading\n\n', '%PDF-1.4\n%\u00e2\u00e3\n1 0 obj\n',
+  ]
+  for (const t of unreadable) assert.equal(noRowsReason(load(t).p), 'unreadable', JSON.stringify(t))
+  // Every row skipped as a total or zero: rows were found, so say that instead of "does not look like a ledger".
+  assert.equal(noRowsReason(load('Period,Account,Debit,Credit\n2026-10,4000,0,0\n2026-10,Total,10,10\n').p), 'all-skipped')
+  // Warnings alone do not explain an empty result either.
+  assert.equal(noRowsReason(load('Account Code,Debit - Year to Date,Credit - Year to Date\n').p), 'unreadable')
+})
+
+test('no empty-file message when rows were read or errors already explain the problem', () => {
+  const fine = [
+    'Period,Account,Debit,Credit\n2026-10,4000,0,100\n',
+    'Account,Debit,Credit\n4000,0,100\n', // no period: an error is listed, not a generic message
+    'Account,Amount,Period\n4000,100,2026-10\n',
+    'Account,Line\n6100,Marketing\n', // mapping
+    'Account,2026-01,2026-02\n6100,10,20\n', // wide budget
+    'Date,Account,Amount\n2026-10-03,6100,12.5\n',
+  ]
+  for (const t of fine) {
+    const { p } = load(t)
+    assert.ok(p.actuals.length + p.budget.length + p.mapping.length > 0 || p.issues.some(i => i.level === 'error'), JSON.stringify(t))
+    assert.equal(noRowsReason(p), null, JSON.stringify(t))
+  }
+  // Errors are listed line by line; the generic message would only repeat them.
+  for (const t of ['Period,Account,Debit,Credit\n2026-10,4000,x,y\n', 'Name,Email\nAda,ada@example.com\n', 'Period,Account,Amount\n2026-10,,5\n']) {
+    const { p } = load(t)
+    assert.ok(p.issues.some(i => i.level === 'error'), JSON.stringify(t))
+    assert.equal(noRowsReason(p), null, JSON.stringify(t))
+  }
 })

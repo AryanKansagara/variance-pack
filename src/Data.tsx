@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { balanceChecks, detect, isBalanceSheetAccount, parseCsv, parseRows, proposeMapping, tieOut, toCsv, type Detected, type Field, type Kind } from './engine/parse.ts'
+import { balanceChecks, detect, isBalanceSheetAccount, noRowsReason, parseCsv, parseRows, proposeMapping, tieOut, toCsv, type Detected, type Field, type Kind } from './engine/parse.ts'
 import { periodsOf } from './engine/variance.ts'
 import { addYtd, applyYtd, isFiscalMonth, MONTH_NAMES, monthLabel } from './engine/ytd.ts'
 import { SECTIONS, type Basis, type Config, type Dataset, type Entity, type MapRow, type Section } from './engine/types.ts'
@@ -243,6 +243,8 @@ function ImportWizard({ open, onClose, p, ds }: { open: boolean; onClose(): void
 
   const setCol = (f: Field, v: string) => det && setDet({ ...det, columns: { ...det.columns, [f]: v === '' ? undefined : +v } })
   const errors = parsed ? parsed.issues.filter(i => i.level === 'error').length : 0
+  const ready = parsed ? parsed.actuals.length + parsed.budget.length + parsed.mapping.length : 0 // an error count of zero is only a pass when something was read
+  const empty = parsed ? noRowsReason(parsed) : null
   const needsPeriod = det && det.kind !== 'mapping' && det.columns.period === undefined && det.columns.date === undefined && (det.kind === 'actuals' || !Object.keys(det.monthColumns).length)
 
   return (
@@ -288,13 +290,17 @@ function ImportWizard({ open, onClose, p, ds }: { open: boolean; onClose(): void
           </details>
           <div className="validation">
             <div className="v-sum">
-              <span><b>{(parsed.actuals.length + parsed.budget.length + parsed.mapping.length).toLocaleString()}</b> rows ready</span>
+              <span><b>{ready.toLocaleString()}</b> rows ready</span>
               <span>{parsed.skipped} skipped (totals, blanks, zero)</span>
-              <span className={errors ? 'warn-t' : 'fav-t'}><b>{errors}</b> {errors === 1 ? 'error' : 'errors'}</span>
+              <span className={errors ? 'warn-t' : ready ? 'fav-t' : 'muted'}><b>{errors}</b> {errors === 1 ? 'error' : 'errors'}</span>
               {parsed.issues.length > errors && <span className="muted"><b>{parsed.issues.length - errors}</b> {parsed.issues.length - errors === 1 ? 'warning' : 'warnings'}</span>}
               {parsed.periods.length > 0 && <span>{parsed.periods.length === 1 ? fmtMonth(parsed.periods[0]) : `${fmtMonth(parsed.periods[0])} to ${fmtMonth(parsed.periods[parsed.periods.length - 1])}`}</span>}
               {det.kind === 'actuals' && <span>{parsed.hasDetail ? 'GL detail (drivers available)' : 'Trial balance (no vendor detail)'}</span>}
             </div>
+            {empty && <p className="warn-t small" role="alert">{empty === 'unreadable'
+              ? 'No rows could be read from this file. It does not look like a trial balance, GL detail, budget or mapping. '
+              : 'Every row in this file was skipped (totals, blanks or zero amounts), so there is nothing to import. '}
+              Check the header row in Column mapping or <Link href="/docs">see the export steps</Link>.</p>}
             {balance.length > 0 && <ul className="checks small">{balance.slice(-4).map(c => <li key={c.entity + c.period} className={c.ok ? 'ok' : c.pnlOnly ? 'info' : 'bad'}>{c.entity} {fmtMonth(c.period)}: {c.ok ? 'debits equal credits' : c.pnlOnly ? `P&L only, net ${fmtUsd(c.diff, 2)}` : `out of balance by ${fmtUsd(c.diff, 2)}`}</li>)}</ul>}
             {ytdMode && !fyNum && <p className="warn-t small">Choose the month your fiscal year starts in. Xero does not put it in the export, and without it a year to date cannot be told apart from a month.</p>}
             {ytdMode && errors > 0 && <p className="warn-t small" role="alert">A year-to-date file has to be complete: an account left out counts as a zero balance, so its whole year to date would reverse. Fix the rows with errors and choose the file again.</p>}

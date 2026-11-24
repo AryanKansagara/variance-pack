@@ -201,6 +201,17 @@ export interface Parsed {
   types: Record<string, string>
 }
 
+/**
+ * Why a parse produced nothing to import, when nothing explains it yet. A file that is only prose is read as
+ * grouped-export account headers, so it gives no rows and no error; "0 errors" must not read as a pass.
+ * Null when there are rows, or when the listed errors already say what is wrong.
+ */
+export function noRowsReason(p: Parsed): 'unreadable' | 'all-skipped' | null {
+  if (p.actuals.length || p.budget.length || p.mapping.length) return null
+  if (p.issues.some(i => i.level === 'error')) return null
+  return p.skipped > 0 ? 'all-skipped' : 'unreadable'
+}
+
 export interface ParseOpts {
   /** Used when the file has no entity column. */
   entity: string
