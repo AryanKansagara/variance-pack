@@ -269,6 +269,7 @@ test.describe('Xero year-to-date trial balances', () => {
     // No year-to-date number is shown as a month: the pack has no months at all yet.
     await page.getByRole('link', { name: 'Overview' }).click()
     await expect(page.getByRole('heading', { name: 'Import a ledger to start the close' })).toBeVisible()
+    await expect(page.getByRole('status').filter({ hasText: 'February 2026 is held back: the January 2026 year-to-date trial balance is missing' })).toBeVisible()
     await page.getByRole('link', { name: 'Data & mapping' }).click()
     await expect(page.locator('tr[data-state=blocked]')).toContainText('February 2026 is held back')
 

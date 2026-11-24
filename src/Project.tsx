@@ -8,6 +8,7 @@ import { saveProject, type CheckStatus, type Project as P, type Snapshot } from 
 import { deleteSnapshotCloud } from './sync.ts'
 import { Empty, fmtMonth, fmtMonthShort, fmtPct, fmtUsd, go, isTyping, Link, Modal, NotFound, SyntheticBadge, toast, download } from './ui.tsx'
 import { toCsv } from './engine/parse.ts'
+import { applyYtd } from './engine/ytd.ts'
 
 const Data = lazy(() => import('./Data.tsx'))
 
@@ -26,6 +27,7 @@ export default function ProjectView({ id, tab }: { id: string; tab: string }) {
   if (!project || !ds) return <NotFound />
   const noData = !ds.actuals.length || !project.config.mapping.length
   const t = TABS.some(([k]) => k === tab) ? tab : 'overview'
+  const held = ds.ytd?.length ? applyYtd(ds, project.config.fiscalYearStart).status.filter(st => st.state === 'blocked' || st.state === 'needs-fiscal-year') : []
 
   return (
     <section className="page project">
@@ -54,6 +56,7 @@ export default function ProjectView({ id, tab }: { id: string; tab: string }) {
         )}
       </div>
       {project.dataMissing && <div className="banner warn">This pack was synced from another device and its ledger was too large to sync. Mapping, commentary and snapshots are here; re-import the ledger on this device to recompute.</div>}
+      {t !== 'data' && held.map(st => <div key={`${st.entity}|${st.period}`} className="banner warn" role="status">{st.message} <Link href={`/app/p/${id}/data`}>Year-to-date trial balances</Link></div>)}
       <nav className="tabs" aria-label="Pack sections">
         {TABS.map(([k, l]) => <Link key={k} href={`/app/p/${id}${k === 'overview' ? '' : '/' + k}`} aria-current={t === k ? 'page' : undefined}>{l}{k === 'commentary' && a.flags.length > 0 && <span className="count">{a.flags.length}</span>}</Link>)}
         <span className="tabs-spacer" />

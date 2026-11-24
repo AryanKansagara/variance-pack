@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { balanceChecks, detect, isBalanceSheetAccount, parseCsv, parseRows, proposeMapping, tieOut, toCsv, type Detected, type Field, type Kind } from './engine/parse.ts'
 import { periodsOf } from './engine/variance.ts'
-import { addYtd, applyYtd, isFiscalMonth, MONTH_NAMES, monthLabel, type YtdStatus } from './engine/ytd.ts'
+import { addYtd, applyYtd, isFiscalMonth, MONTH_NAMES, monthLabel } from './engine/ytd.ts'
 import { SECTIONS, type Basis, type Config, type Dataset, type Entity, type MapRow, type Section } from './engine/types.ts'
 import { putData, saveProject, uuid, type ImportMeta, type Project } from './store.ts'
 import { ask, download, fmtMonth, fmtUsd, Link, Modal, toast } from './ui.tsx'
