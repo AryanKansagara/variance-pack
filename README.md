@@ -31,6 +31,15 @@ npm run dev
 npm test
 ```
 
+## Tests
+
+- `npm test`: unit tests for the engine and the importers (Node's built-in runner, `src/**/*.test.ts`).
+- `npm run test:e2e`: browser tests with Playwright (Chromium) against the **production build** served by `vite preview`. It builds first, so it never tests a stale build. Run `npx playwright install chromium` once (add `--with-deps` on a fresh Linux machine). Set `E2E_PORT` if port 4173 is taken; the suite refuses to reuse a server that is already running.
+
+The browser tests run signed out, close the network to everything but the app (web fonts and Supabase are aborted), and fail on any uncaught page error, console error or outside request. They cover opening a sample, editing commentary and seeing it in the pack, importing synthetic actuals and a budget through to a variance, unreadable or wrong-format files, and persistence across a reload. The synthetic files are in `e2e/fixtures`.
+
+GitHub Actions (`.github/workflows/ci.yml`) runs install, build, unit tests and the browser tests on every pull request and push to `main`.
+
 Optional sync needs `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env`. Without them everything runs locally.
 
 Live: https://variance-pack.vercel.app
