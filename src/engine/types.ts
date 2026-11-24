@@ -11,6 +11,10 @@ export interface Line {
   date?: string
   units?: number
   ref?: string
+  /** A month derived from year-to-date trial balances (this year-to-date minus the previous month's). Not a posted amount. */
+  derived?: true
+  /** On a year-to-date source line: a balance sheet account, whose closing balance is kept as it is. */
+  bs?: true
 }
 
 /** Budget or forecast amount, natural sign (revenue and expense both positive). */
@@ -49,6 +53,11 @@ export interface Dataset {
   budget: BudgetRow[]
   /** Optional trial balance kept only to tie out against the GL detail. */
   tb?: Line[]
+  /**
+   * Year-to-date trial balances (Xero) as imported, one set per entity and as-at month, amounts as in the file.
+   * `actuals` holds the months derived from them, recomputed whenever this changes.
+   */
+  ytd?: Line[]
 }
 
 export interface Thresholds {
@@ -67,4 +76,6 @@ export interface Config {
   basis: Basis
   /** Accounts an import identified as balance sheet (e.g. Xero's 090 Bank or 800 Accounts Payable) that the code range alone would miss. */
   balanceSheet?: string[]
+  /** Calendar month (1-12) the fiscal year starts in. Year-to-date trial balances need it; it is asked for, never guessed. */
+  fiscalYearStart?: number
 }

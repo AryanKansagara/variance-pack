@@ -217,7 +217,8 @@ export function parseRows(rows: string[][], d: Detected, opts: ParseOpts): Parse
   let groupAccount: string | null = null
   // QuickBooks report sections ("Income", "Expenses") tell us the normal balance of the accounts under them.
   let sectionType: 'Income' | 'Expense' | null = null
-  if (d.ytd) issue(d.headerRow + 1, 'Debit and credit columns are year-to-date. P&L accounts will show the year so far, not the month; export the trial balance for a single month or use GL detail.', 'warning')
+  if (d.ytd) issue(d.headerRow + 1, 'Debit and credit columns are year-to-date, not a month. P&L accounts become months by subtracting the previous month\'s year-to-date trial balance of the same fiscal year; balance sheet accounts keep their closing balances.', 'warning')
+  if (d.ytd && c.section === undefined) issue(d.headerRow + 1, 'There is no Account Type column. Without it, balance sheet accounts are recognised by code (1000-3999) or name only, so a Xero bank or payables account such as 090 or 800 could be treated as revenue or expense and differenced. Export the Trial Balance with Account Type.', 'warning')
   for (let i = d.headerRow + 1; i < rows.length; i++) {
     const r = rows[i], ln = i + 1
     if (!r.some(x => x)) continue
@@ -298,6 +299,7 @@ export function parseRows(rows: string[][], d: Detected, opts: ParseOpts): Parse
     const nameCell = get(r, c.accountName)
     out.actuals.push({
       entity, period, account: code, debit: r2(debit), credit: r2(credit),
+      ...(d.ytd && isBalanceSheetAccount(code, nameCell || name, type ?? undefined) ? { bs: true as const } : {}),
       ...(vendor ? { vendor } : {}), ...(dept ? { dept } : {}), ...(memo ? { memo } : {}),
       ...(get(r, c.date) ? { date: get(r, c.date) } : {}), ...(units ? { units } : {}), ...(get(r, c.ref) ? { ref: get(r, c.ref) } : {}),
     })
@@ -384,6 +386,7 @@ export interface BalanceCheck { entity: string; period: string; debit: number; c
 export function balanceChecks(lines: Line[]): BalanceCheck[] {
   const m = new Map<string, BalanceCheck>()
   for (const l of lines) {
+    if (l.derived) continue // derived months mix movements with closing balances; their year-to-date source is what balances
     const k = `${l.entity}|${l.period}`
     const e = m.get(k) ?? { entity: l.entity, period: l.period, debit: 0, credit: 0, diff: 0, ok: true, pnlOnly: true }
     e.debit += l.debit; e.credit += l.credit
