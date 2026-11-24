@@ -283,6 +283,15 @@ test.describe('Xero year-to-date trial balances', () => {
     await expect(febRow(page, '200').locator('td').nth(0)).toHaveText('$45,000')
   })
 
+  test('a year-to-date file with an unreadable row is not imported in part', async ({ page }) => {
+    await newPack(page, 'Harbor Row Studio')
+    await chooseFile(page, fixture('xero-tb-ytd-2026-02-bad-row.csv'))
+    const dialog = importDialog(page)
+    await dialog.getByLabel('Fiscal year starts in').selectOption('2')
+    await expect(dialog.getByRole('alert')).toContainText('A year-to-date file has to be complete')
+    await expect(dialog.getByRole('button', { name: /^Import/ })).toBeDisabled()
+  })
+
   test('changing the fiscal year start recomputes from the kept year-to-date files', async ({ page }) => {
     await newPack(page, 'Harbor Row Studio')
     await chooseFile(page, fixture('xero-tb-ytd-2026-01.csv'))

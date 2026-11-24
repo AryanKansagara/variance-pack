@@ -297,12 +297,13 @@ function ImportWizard({ open, onClose, p, ds }: { open: boolean; onClose(): void
             </div>
             {balance.length > 0 && <ul className="checks small">{balance.slice(-4).map(c => <li key={c.entity + c.period} className={c.ok ? 'ok' : c.pnlOnly ? 'info' : 'bad'}>{c.entity} {fmtMonth(c.period)}: {c.ok ? 'debits equal credits' : c.pnlOnly ? `P&L only, net ${fmtUsd(c.diff, 2)}` : `out of balance by ${fmtUsd(c.diff, 2)}`}</li>)}</ul>}
             {ytdMode && !fyNum && <p className="warn-t small">Choose the month your fiscal year starts in. Xero does not put it in the export, and without it a year to date cannot be told apart from a month.</p>}
-            {ytdMode && ytdHere.length > 0 && <ul className="checks small">{ytdHere.map(st => <li key={`${st.entity}|${st.period}`} className={st.state === 'blocked' || st.suspect ? 'bad' : st.state === 'overridden' ? 'info' : 'ok'}>{st.message}{st.appeared.length > 0 && ` New in this file: ${st.appeared.join(', ')}.`}</li>)}</ul>}
+            {ytdMode && errors > 0 && <p className="warn-t small" role="alert">A year-to-date file has to be complete: an account left out counts as a zero balance, so its whole year to date would reverse. Fix the rows with errors and choose the file again.</p>}
+            {ytdMode && !errors && ytdHere.length > 0 && <ul className="checks small">{ytdHere.map(st => <li key={`${st.entity}|${st.period}`} className={st.state === 'blocked' || st.suspect ? 'bad' : st.state === 'overridden' ? 'info' : 'ok'}>{st.message}{st.appeared.length > 0 && ` New in this file: ${st.appeared.join(', ')}.`}</li>)}</ul>}
             {parsed.issues.length > 0 && <ul className="issues">{parsed.issues.slice(0, 50).map((i, k) => <li key={k} className={i.level}><span className="mono">Line {i.line}</span> {i.level === 'warning' ? 'Warning: ' : ''}{i.message}</li>)}{parsed.issues.length > 50 && <li className="muted">…and {parsed.issues.length - 50} more</li>}</ul>}
           </div>
           <div className="row end gap">
             <button type="button" className="btn ghost" onClick={() => { reset(); onClose() }}>Cancel</button>
-            <button type="button" className="btn primary" disabled={(!parsed.actuals.length && !parsed.budget.length && !parsed.mapping.length) || !!(needsPeriod && !period) || (ytdMode && !fyNum)} onClick={() => void commit()}>Import {errors ? 'valid rows' : ''}</button>
+            <button type="button" className="btn primary" disabled={(!parsed.actuals.length && !parsed.budget.length && !parsed.mapping.length) || !!(needsPeriod && !period) || (ytdMode && (!fyNum || errors > 0))} onClick={() => void commit()}>Import {errors ? 'valid rows' : ''}</button>
           </div>
         </div>
       )}
