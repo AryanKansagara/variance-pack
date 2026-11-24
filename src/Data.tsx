@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { balanceChecks, detect, isBalanceSheetAccount, parseCsv, parseRows, proposeMapping, tieOut, toCsv, type Detected, type Field, type Kind } from './engine/parse.ts'
 import { periodsOf } from './engine/variance.ts'
+import { addYtd, applyYtd, isFiscalMonth, MONTH_NAMES, monthLabel } from './engine/ytd.ts'
 import { SECTIONS, type Basis, type Config, type Dataset, type Entity, type MapRow, type Section } from './engine/types.ts'
 import { putData, saveProject, uuid, type ImportMeta, type Project } from './store.ts'
 import { ask, download, fmtMonth, fmtUsd, Link, Modal, toast } from './ui.tsx'
@@ -30,6 +31,8 @@ export default function Data({ project: p, ds }: { project: Project; ds: Dataset
         {p.imports.length > 0 && <div className="scroll-x"><table className="vt compact"><thead><tr><th>File</th><th>Type</th><th>Format</th><th className="num">Rows</th><th>Periods</th><th>Issues</th></tr></thead>
           <tbody>{[...p.imports].reverse().map(i => <tr key={i.id}><th scope="row">{i.fileName}</th><td>{i.kind === 'tb' ? 'Tie-out TB' : i.kind}</td><td className="muted">{i.format}</td><td className="num">{i.rows.toLocaleString()}</td><td className="small">{i.periods.length ? `${i.periods[0]} to ${i.periods[i.periods.length - 1]}` : ''}</td><td className={i.issues ? 'warn-t' : 'muted'}>{i.issues || 'none'}</td></tr>)}</tbody></table></div>}
       </div>
+
+      {!!ds.ytd?.length && <YearToDate p={p} ds={ds} />}
 
       <div className="card pad">
         <h2 className="h4">Ledger checks</h2>
@@ -71,6 +74,34 @@ export default function Data({ project: p, ds }: { project: Project; ds: Dataset
         </div>
       )}
       <ImportWizard open={importing} onClose={() => setImporting(false)} p={p} ds={ds} />
+    </div>
+  )
+}
+
+function YearToDate({ p, ds }: { p: Project; ds: Dataset }) {
+  const fy = p.config.fiscalYearStart
+  const status = useMemo(() => applyYtd(ds, fy).status, [ds, fy])
+  const balanced = useMemo(() => new Map(balanceChecks(ds.ytd ?? []).map(c => [`${c.entity}|${c.period}`, c])), [ds])
+  const setFy = async (v: number) => {
+    await putData(p.id, applyYtd(ds, v).ds)
+    await saveProject({ ...p, config: { ...p.config, fiscalYearStart: v } })
+    toast(`Fiscal year starts in ${MONTH_NAMES[v - 1]}. Months were recomputed from the year-to-date files.`, { tone: 'ok' })
+  }
+  return (
+    <div className="card pad">
+      <div className="row between wrap gap">
+        <div><h2 className="h4">Year-to-date trial balances</h2><p className="muted small">Each month's revenue and expenses are this file minus the previous month's, within one fiscal year. Balance sheet accounts keep their closing balances. The files are kept, so replacing a month recomputes the months around it.</p></div>
+        <label className="field inline"><span>Fiscal year starts in</span>
+          <select value={fy ?? ''} onChange={e => void setFy(+e.target.value)}>{!isFiscalMonth(fy) && <option value="">Choose…</option>}{MONTH_NAMES.map((n, i) => <option key={n} value={i + 1}>{n}</option>)}</select>
+        </label>
+      </div>
+      <div className="scroll-x"><table className="vt compact"><thead><tr><th>Entity</th><th>As at</th><th>Status</th><th>Year to date</th></tr></thead>
+        <tbody>{status.map(st => { const c = balanced.get(`${st.entity}|${st.period}`); return (
+          <tr key={`${st.entity}|${st.period}`} data-state={st.state}>
+            <th scope="row" className="mono">{st.entity}</th><td>{monthLabel(st.period)}</td>
+            <td className={st.state === 'blocked' || st.state === 'needs-fiscal-year' || st.suspect ? 'warn-t small' : 'small'}>{st.message}{st.appeared.length > 0 && ` New in ${monthLabel(st.period)}: ${st.appeared.join(', ')}.`}</td>
+            <td className={c && !c.ok ? 'warn-t small' : 'muted small'}>{c ? c.ok ? 'debits equal credits' : `out of balance by ${fmtUsd(c.diff, 2)}` : ''}</td>
+          </tr>) })}</tbody></table></div>
     </div>
   )
 }
@@ -146,9 +177,15 @@ function ImportWizard({ open, onClose, p, ds }: { open: boolean; onClose(): void
   const [asTb, setAsTb] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [fy, setFy] = useState(p.config.fiscalYearStart ? String(p.config.fiscalYearStart) : '')
   const reset = () => { setFile(null); setDet(null); setErr(null); setAsTb(false) }
   const parsed = useMemo(() => file && det ? parseRows(file.rows, det, { entity, period: period || undefined }) : null, [file, det, entity, period])
   const balance = useMemo(() => parsed && det?.kind === 'actuals' ? balanceChecks(parsed.actuals) : [], [parsed, det])
+  // A year-to-date trial balance (Xero) is turned into months against the previous month's file, so the fiscal year start must be known.
+  const ytdMode = !!(det?.ytd && det.kind === 'actuals' && !asTb)
+  const fyNum = isFiscalMonth(+fy) ? +fy : undefined
+  const ytdPlan = useMemo(() => ytdMode && parsed ? addYtd(ds, parsed.actuals, fyNum) : null, [ytdMode, parsed, ds, fyNum])
+  const ytdHere = ytdPlan?.status.filter(st => parsed?.periods.includes(st.period) && (parsed.actuals.some(l => l.entity === st.entity))) ?? []
 
   const read = async (f: File) => {
     setBusy(true); setErr(null)
@@ -179,6 +216,8 @@ function ImportWizard({ open, onClose, p, ds }: { open: boolean; onClose(): void
     } else if (det.kind === 'budget') {
       const keys = new Set(parsed.budget.map(b => `${b.entity}|${b.period}`))
       next = { ...next, budget: [...ds.budget.filter(b => !keys.has(`${b.entity}|${b.period}`)), ...parsed.budget] }
+    } else if (ytdMode) {
+      next = addYtd(ds, parsed.actuals, fyNum).ds
     } else {
       const keys = new Set(parsed.actuals.map(l => `${l.entity}|${l.period}`))
       if (asTb) next = { ...next, tb: [...(ds.tb ?? []).filter(l => !keys.has(`${l.entity}|${l.period}`)), ...parsed.actuals] }
@@ -196,8 +235,9 @@ function ImportWizard({ open, onClose, p, ds }: { open: boolean; onClose(): void
     const meta: ImportMeta = { id: uuid(), kind: det.kind === 'actuals' && asTb ? 'tb' : det.kind, fileName: file.name, format: det.format, rows: parsed.actuals.length + parsed.budget.length + parsed.mapping.length, issues: parsed.issues.length, periods: parsed.periods, at: Date.now() }
     await putData(p.id, next)
     const periods = periodsOf(next)
-    await saveProject({ ...p, imports: [...p.imports, meta], config: { ...p.config, mapping, entities, ...(bsAdd.length ? { balanceSheet: [...new Set([...(p.config.balanceSheet ?? []), ...bsAdd])] } : {}) }, period: periods[periods.length - 1] ?? p.period })
-    toast(`Imported ${meta.rows.toLocaleString()} rows from ${file.name}.`, { tone: 'ok' })
+    await saveProject({ ...p, imports: [...p.imports, meta], config: { ...p.config, mapping, entities, ...(ytdMode && fyNum ? { fiscalYearStart: fyNum } : {}), ...(bsAdd.length ? { balanceSheet: [...new Set([...(p.config.balanceSheet ?? []), ...bsAdd])] } : {}) }, period: periods[periods.length - 1] ?? p.period })
+    const held = ytdHere.filter(st => st.state === 'blocked')
+    toast(`Imported ${meta.rows.toLocaleString()} rows from ${file.name}.${held.length ? ` ${held.map(h => monthLabel(h.period)).join(', ')} not shown yet: the previous month's year-to-date file is missing.` : ''}`, { tone: held.length ? undefined : 'ok' })
     reset(); onClose()
   }
 
@@ -227,6 +267,9 @@ function ImportWizard({ open, onClose, p, ds }: { open: boolean; onClose(): void
             <label className="field"><span>This file is</span><select value={det.kind} onChange={e => setDet({ ...det, kind: e.target.value as Kind })}><option value="actuals">Actuals (TB or GL detail)</option><option value="budget">Budget or forecast</option><option value="mapping">Chart-of-accounts mapping</option></select></label>
             {det.kind !== 'mapping' && det.columns.entity === undefined && <label className="field"><span>Entity</span><input value={entity} onChange={e => setEntity(e.target.value.trim() || 'MAIN')} list="ents" /><datalist id="ents">{p.config.entities.map(e => <option key={e.id} value={e.id} />)}</datalist></label>}
             {needsPeriod && <label className="field"><span>Period (no date column)</span><input type="month" value={period} onChange={e => setPeriod(e.target.value)} required /></label>}
+            {ytdMode && <label className="field"><span>Fiscal year starts in *</span>
+              <select value={fy} onChange={e => setFy(e.target.value)} required><option value="">Choose…</option>{MONTH_NAMES.map((n, i) => <option key={n} value={i + 1}>{n}</option>)}</select>
+            </label>}
             {det.kind === 'actuals' && ds.actuals.length > 0 && <label className="check-field"><input type="checkbox" checked={asTb} onChange={e => setAsTb(e.target.checked)} /> Use only to tie out against the GL already imported</label>}
           </div>
           <details open={parsed.issues.length > 0 || !parsed.actuals.length && !parsed.budget.length && !parsed.mapping.length}>
@@ -253,11 +296,14 @@ function ImportWizard({ open, onClose, p, ds }: { open: boolean; onClose(): void
               {det.kind === 'actuals' && <span>{parsed.hasDetail ? 'GL detail (drivers available)' : 'Trial balance (no vendor detail)'}</span>}
             </div>
             {balance.length > 0 && <ul className="checks small">{balance.slice(-4).map(c => <li key={c.entity + c.period} className={c.ok ? 'ok' : c.pnlOnly ? 'info' : 'bad'}>{c.entity} {fmtMonth(c.period)}: {c.ok ? 'debits equal credits' : c.pnlOnly ? `P&L only, net ${fmtUsd(c.diff, 2)}` : `out of balance by ${fmtUsd(c.diff, 2)}`}</li>)}</ul>}
+            {ytdMode && !fyNum && <p className="warn-t small">Choose the month your fiscal year starts in. Xero does not put it in the export, and without it a year to date cannot be told apart from a month.</p>}
+            {ytdMode && errors > 0 && <p className="warn-t small" role="alert">A year-to-date file has to be complete: an account left out counts as a zero balance, so its whole year to date would reverse. Fix the rows with errors and choose the file again.</p>}
+            {ytdMode && !errors && ytdHere.length > 0 && <ul className="checks small">{ytdHere.map(st => <li key={`${st.entity}|${st.period}`} className={st.state === 'blocked' || st.suspect ? 'bad' : st.state === 'overridden' ? 'info' : 'ok'}>{st.message}{st.appeared.length > 0 && ` New in this file: ${st.appeared.join(', ')}.`}</li>)}</ul>}
             {parsed.issues.length > 0 && <ul className="issues">{parsed.issues.slice(0, 50).map((i, k) => <li key={k} className={i.level}><span className="mono">Line {i.line}</span> {i.level === 'warning' ? 'Warning: ' : ''}{i.message}</li>)}{parsed.issues.length > 50 && <li className="muted">…and {parsed.issues.length - 50} more</li>}</ul>}
           </div>
           <div className="row end gap">
             <button type="button" className="btn ghost" onClick={() => { reset(); onClose() }}>Cancel</button>
-            <button type="button" className="btn primary" disabled={(!parsed.actuals.length && !parsed.budget.length && !parsed.mapping.length) || !!(needsPeriod && !period)} onClick={() => void commit()}>Import {errors ? 'valid rows' : ''}</button>
+            <button type="button" className="btn primary" disabled={(!parsed.actuals.length && !parsed.budget.length && !parsed.mapping.length) || !!(needsPeriod && !period) || (ytdMode && (!fyNum || errors > 0))} onClick={() => void commit()}>Import {errors ? 'valid rows' : ''}</button>
           </div>
         </div>
       )}

@@ -1,0 +1,14 @@
+Trial Balance,,,,
+Harbor Row Studio (synthetic),,,,
+As at 28 February 2026,,,,
+,,,,
+Account Code,Account,Account Type,Debit - Year to date,Credit - Year to date
+200,Sales,Revenue,,"85,000.00"
+310,Cost of Goods Sold,Direct Costs,"26,000.00",
+400,Advertising,Expense,22k?,
+477,Wages and Salaries,Expense,"40,000.00",
+485,Software Subscriptions,Expense,"1,200.50",
+090,Checking Account,Bank,"60,000.00",
+800,Accounts Payable,Current Liability,,"17,200.50"
+960,Retained Earnings,Equity,,"47,000.00"
+Total,,,"149,200.50","149,200.50"

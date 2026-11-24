@@ -191,3 +191,120 @@ test.describe('files the importer cannot use', () => {
     await thenImportGoodFile(page, 'not-a-ledger.csv')
   })
 })
+
+test.describe('Xero year-to-date trial balances', () => {
+  const importFile = async (page: Page, name: string, opts: { fiscalYearStart?: string } = {}) => {
+    await page.getByRole('button', { name: 'Import file' }).click()
+    const dialog = importDialog(page)
+    await chooseFile(page, fixture(name))
+    await expect(dialog.getByText('rows ready')).toBeVisible()
+    if (opts.fiscalYearStart) await dialog.getByLabel('Fiscal year starts in').selectOption(opts.fiscalYearStart)
+    await dialog.getByRole('button', { name: 'Import', exact: true }).click()
+    await expect(page.getByText(`Imported`).filter({ hasText: name })).toBeVisible()
+  }
+  const febRow = (page: Page, account: string) => page.locator('tr.acc-row', { hasText: account })
+  const open = async (page: Page, line: string) => page.getByRole('table', { name: 'Variance by account' }).getByRole('button', { name: line }).click()
+
+  test('two successive imports give February as a month, not the year so far', async ({ page }) => {
+    await newPack(page, 'Harbor Row Studio')
+    const dialog = importDialog(page)
+    await chooseFile(page, fixture('xero-tb-ytd-2026-01.csv'))
+    await expect(dialog.getByText('Xero: Trial Balance')).toBeVisible()
+    // The fiscal year start is asked for, never guessed: nothing can be imported until it is chosen.
+    await expect(dialog.getByText(/Choose the month your fiscal year starts in/)).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Import', exact: true })).toBeDisabled()
+    await dialog.getByLabel('Fiscal year starts in').selectOption('1')
+    await expect(dialog.getByText(/January 2026 is the first month of the fiscal year/)).toBeVisible()
+    await dialog.getByRole('button', { name: 'Import', exact: true }).click()
+    await expect(page.getByText('Imported 6 rows from xero-tb-ytd-2026-01.csv.')).toBeVisible()
+
+    await page.getByRole('button', { name: 'Import file' }).click()
+    await chooseFile(page, fixture('xero-tb-ytd-2026-02.csv'))
+    await expect(dialog.getByText(/February 2026 = year to date as at February 2026 minus year to date as at January 2026\. New in this file: 485\./)).toBeVisible()
+    await expect(dialog.getByLabel('Fiscal year starts in')).toHaveValue('1') // remembered
+    await dialog.getByRole('button', { name: 'Import', exact: true }).click()
+    await expect(page.getByText('Imported 8 rows from xero-tb-ytd-2026-02.csv.')).toBeVisible()
+    await importFile(page, 'budget-2026-01-02.csv')
+
+    // The Data tab says how each month was made, and the year-to-date files balance.
+    const card = page.locator('.card', { hasText: 'Year-to-date trial balances' })
+    await expect(card.locator('tr[data-state=first]')).toContainText('first month of the fiscal year')
+    await expect(card.locator('tr[data-state=derived]')).toContainText('year to date as at February 2026 minus year to date as at January 2026')
+    await expect(card.getByText('debits equal credits')).toHaveCount(2)
+    await expect(page.getByText(/out of balance/)).toHaveCount(0)
+
+    await page.getByRole('link', { name: 'Overview' }).click()
+    const expectFebruary = async () => {
+      await expect(page.getByLabel('Period')).toHaveValue('2026-02')
+      const kpis = page.locator('.kpi')
+      await expect(kpis.filter({ hasText: 'Revenue' })).toContainText('$45k') // February alone; the year so far is $85k
+      await expect(kpis.filter({ hasText: 'Net income' })).toContainText('-$7.2k')
+      await open(page, 'Product revenue')
+      await expect(febRow(page, '200').locator('td').nth(0)).toHaveText('$45,000')
+      await expect(febRow(page, '200').locator('td').nth(2)).toHaveText('+$1,000')
+      await expect(febRow(page, '400').locator('td').nth(0)).toHaveText('$17,000')
+      await expect(febRow(page, '400').locator('td').nth(2)).toHaveText('+$12,000')
+      await expect(febRow(page, '400')).toHaveClass(/flagged/)
+    }
+    await expectFebruary()
+
+    // Derived months and their year-to-date source persist.
+    await page.reload()
+    await expectFebruary()
+
+    // January is its own year to date.
+    await page.getByLabel('Period').selectOption('2026-01') // the line stays expanded from February
+    await expect(febRow(page, '200').locator('td').nth(0)).toHaveText('$40,000')
+  })
+
+  test('a missing prior month holds the month back with a message, and importing it later fills it in', async ({ page }) => {
+    await newPack(page, 'Harbor Row Studio')
+    const dialog = importDialog(page)
+    await chooseFile(page, fixture('xero-tb-ytd-2026-02.csv'))
+    await dialog.getByLabel('Fiscal year starts in').selectOption('1')
+    await expect(dialog.getByText(/February 2026 is held back: the January 2026 year-to-date trial balance is missing/)).toBeVisible()
+    await dialog.getByRole('button', { name: 'Import', exact: true }).click()
+    await expect(page.getByText(/February 2026 not shown yet: the previous month's year-to-date file is missing\./)).toBeVisible()
+
+    // No year-to-date number is shown as a month: the pack has no months at all yet.
+    await page.getByRole('link', { name: 'Overview' }).click()
+    await expect(page.getByRole('heading', { name: 'Import a ledger to start the close' })).toBeVisible()
+    await expect(page.getByRole('status').filter({ hasText: 'February 2026 is held back: the January 2026 year-to-date trial balance is missing' })).toBeVisible()
+    await page.getByRole('link', { name: 'Data & mapping' }).click()
+    await expect(page.locator('tr[data-state=blocked]')).toContainText('February 2026 is held back')
+
+    // Out of order: January arrives second, and both months appear.
+    await importFile(page, 'xero-tb-ytd-2026-01.csv')
+    await importFile(page, 'budget-2026-01-02.csv')
+    await expect(page.locator('tr[data-state=blocked]')).toHaveCount(0)
+    await page.getByRole('link', { name: 'Overview' }).click()
+    await expect(page.getByLabel('Period')).toHaveValue('2026-02')
+    await open(page, 'Product revenue')
+    await expect(febRow(page, '200').locator('td').nth(0)).toHaveText('$45,000')
+  })
+
+  test('a year-to-date file with an unreadable row is not imported in part', async ({ page }) => {
+    await newPack(page, 'Harbor Row Studio')
+    await chooseFile(page, fixture('xero-tb-ytd-2026-02-bad-row.csv'))
+    const dialog = importDialog(page)
+    await dialog.getByLabel('Fiscal year starts in').selectOption('2')
+    await expect(dialog.getByRole('alert')).toContainText('A year-to-date file has to be complete')
+    await expect(dialog.getByRole('button', { name: /^Import/ })).toBeDisabled()
+  })
+
+  test('changing the fiscal year start recomputes from the kept year-to-date files', async ({ page }) => {
+    await newPack(page, 'Harbor Row Studio')
+    await chooseFile(page, fixture('xero-tb-ytd-2026-01.csv'))
+    await importDialog(page).getByLabel('Fiscal year starts in').selectOption('1')
+    await importDialog(page).getByRole('button', { name: 'Import', exact: true }).click()
+    await importFile(page, 'xero-tb-ytd-2026-02.csv')
+    const card = page.locator('.card', { hasText: 'Year-to-date trial balances' })
+    await expect(card.locator('tr[data-state=derived]')).toHaveCount(1)
+    // With a February start, January needs December and February is a first month.
+    await card.getByLabel('Fiscal year starts in').selectOption('2')
+    await expect(card.locator('tr[data-state=blocked]')).toContainText('January 2026 is held back: the December 2025 year-to-date trial balance is missing')
+    await expect(card.locator('tr[data-state=first]')).toContainText('February 2026 is the first month')
+    await card.getByLabel('Fiscal year starts in').selectOption('1')
+    await expect(card.locator('tr[data-state=derived]')).toHaveCount(1)
+  })
+})

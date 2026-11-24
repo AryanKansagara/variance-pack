@@ -59,7 +59,7 @@ export function useProject(id: string) {
     if (project.sampleId) { setDs(sampleData(project.sampleId)); return }
     void getData(project.id).then(d => { if (live) setDs((d as Dataset | undefined) ?? EMPTY) })
     return () => { live = false }
-  }, [project?.id, project?.sampleId, importsKey])
+  }, [project?.id, project?.sampleId, importsKey, project?.config.fiscalYearStart])
   const update = (patch: Partial<Project>) => project ? saveProject({ ...project, ...patch }) : undefined
   return { loading: list === null || (project !== null && ds === null), project, ds, update }
 }
